@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  # Auth Service - Development
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - DEBUG=auth:*
+    volumes:
+      - ./services/auth-service:/app
+      - /app/node_modules
+    command: ["pnpm", "dev"]
+
+  # Backend Service - Development
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - DEBUG=backend:*
+    volumes:
+      - ./services/backend:/app
+      - /app/node_modules
+    command: ["pnpm", "dev"]
+
+  # Frontend Service - Development
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8080/api
+      - VITE_AUTH_URL=http://localhost:8080/auth
+    volumes:
+      - ./services/frontend:/app
+      - /app/node_modules
+    command: ["pnpm", "dev", "--host", "0.0.0.0"]

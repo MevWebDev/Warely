@@ -1,0 +1,40 @@
+{
+  "name": "@warely/backend",
+  "version": "1.0.0",
+  "description": "Warely Backend Service - Business Logic API",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint **/*.ts",
+    "type-check": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^7.2.0",
+    "mongoose": "^8.15.1",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.8.0",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.22",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.17.52",
+    "@typescript-eslint/eslint-plugin": "^8.33.0",
+    "@typescript-eslint/parser": "^8.33.0",
+    "eslint": "^9.27.0",
+    "prisma": "^6.8.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

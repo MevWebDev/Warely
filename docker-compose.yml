@@ -1,0 +1,177 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: warely-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: warely
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7-jammy
+    container_name: warely-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: warely
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./database/mongodb/init:/docker-entrypoint-initdb.d
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: warely-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: warely-auth
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/warely
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-jwt-secret-key
+      - JWT_REFRESH_SECRET=your-refresh-secret-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend Service
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    container_name: warely-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/warely
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/warely?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth-service:4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: warely-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+      - auth-service
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway (Nginx)
+  api-gateway:
+    image: nginx:alpine
+    container_name: warely-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./services/api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+      - auth-service
+    networks:
+      - warely-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+
+networks:
+  warely-network:
+    driver: bridge
