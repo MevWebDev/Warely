@@ -51,8 +51,9 @@ For detailed Kubernetes setup instructions, refer to:
 
 For rapid deployment to your Kubernetes cluster:
 
-bash
+```bash
 ./scripts/deploy-fast.sh
+```
 
 
 This script handles the complete deployment process including:
