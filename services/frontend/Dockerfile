@@ -2,7 +2,9 @@
 FROM node:18-alpine AS base
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm 
+
+RUN apk add --no-cache curl libc6-compat
 
 # Set working directory
 WORKDIR /app
@@ -11,7 +13,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install 
 
 # Copy source code
 COPY . .

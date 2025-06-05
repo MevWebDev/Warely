@@ -1,0 +1,7 @@
+# k8s/00-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: warely
+  labels:
+    app: warely

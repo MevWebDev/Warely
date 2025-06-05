@@ -1,7 +1,7 @@
 FROM node:18-alpine AS base
 
 # Install dependencies for native modules
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache curl libc6-compat
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -20,6 +20,8 @@ RUN pnpm install
 # Copy source code
 COPY . .
 
+ENV DATABASE_URL="postgresql://postgres:password@postgres:5432/warely"
+
 # Generate Prisma client
 RUN pnpm prisma generate
 
@@ -31,7 +33,7 @@ RUN pnpm build
 FROM node:18-alpine AS production
 
 # Install dependencies for native modules
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat curl
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -65,4 +67,5 @@ USER backenduser
 
 EXPOSE 5000
 
-CMD ["pnpm", "start"]
+# Use explicit environment variable loading
+CMD ["sh", "-c", "pnpm start"]

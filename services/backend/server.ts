@@ -49,8 +49,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.get("/", (req, res) => {
-  res.json("Hello from backend");
+app.get("/hello", (req, res) => {
+  res.json("Hello from Warely Backend");
 });
 
 // API routes

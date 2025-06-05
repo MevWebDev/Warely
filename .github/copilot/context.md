@@ -33,12 +33,19 @@ Backend Service:
 - Node.js + Express + TypeScript
 - PostgreSQL (Prisma ORM) for transactional data
 - MongoDB (Mongoose ODM) for analytics/logs
+- Redis for caching and sessions
 - TensorFlow.js for ML predictions
+
+AI Service:
+
+- FastApi, TensorFlow, scikit
+- redis and mongodb
 
 Databases:
 
 - PostgreSQL 15: Users, inventory, orders, suppliers
 - MongoDB 7: Analytics, logs, ML models, reports
+- Redis: Cache, sessions, job queues
 
 Deployment:
 
