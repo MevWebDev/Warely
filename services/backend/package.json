@@ -9,8 +9,11 @@
     "start": "node dist/server.js",
     "lint": "eslint **/*.ts",
     "type-check": "tsc --noEmit",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:studio": "npx prisma studio",
+    "prisma:push": "npx prisma db push",
+    "prisma:reset": "npx prisma migrate reset"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
@@ -26,7 +29,8 @@
     "jwks-rsa": "^3.2.0",
     "mongoose": "^8.15.1",
     "morgan": "^1.10.0",
-    "redis": "^5.5.5"
+    "redis": "^5.5.5",
+    "zod": "^3.25.56"
   },
   "devDependencies": {
     "@types/compression": "^1.8.0",

@@ -20,7 +20,6 @@ RUN pnpm install
 # Copy source code
 COPY . .
 
-ENV DATABASE_URL="postgresql://postgres:password@postgres:5432/warely"
 
 # Generate Prisma client
 RUN pnpm prisma generate
@@ -52,8 +51,8 @@ RUN pnpm install
 # Generate Prisma client
 RUN pnpm prisma generate
 
-# Now remove devDependencies
-RUN pnpm prune --prod
+
+
 
 # Copy built application
 COPY --from=build /app/dist ./dist
@@ -68,4 +67,4 @@ USER backenduser
 EXPOSE 5000
 
 # Use explicit environment variable loading
-CMD ["sh", "-c", "pnpm start"]
+CMD ["sh", "-c", "npx prisma db push && pnpm start"]

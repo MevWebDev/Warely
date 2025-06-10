@@ -8,8 +8,12 @@ data:
   # Database configuration
   POSTGRES_DB: "warely"
   POSTGRES_USER: "postgres"
-  MONGO_INITDB_ROOT_USERNAME: "admin"
-  MONGO_INITDB_DATABASE: "warely"
+
+  MONGO_USER: "admin"
+  MONGO_DB: "warely"
+
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
 
   # Application configuration
   NODE_ENV: "production"

@@ -37,9 +37,11 @@ export async function connectDatabases() {
       console.log("✅ Connected to PostgreSQL");
 
       // Connect to MongoDB
-      const mongoUrl =
-        process.env.MONGODB_URL || "mongodb://localhost:27018/warely";
-      await mongoose.connect(mongoUrl);
+      const mongoUrl = process.env.MONGODB_URL;
+      await mongoose.connect(
+        mongoUrl ||
+          "mongodb://admin:password@mongodb:27017/warely?authSource=admin"
+      );
       console.log("✅ Connected to MongoDB");
 
       // Connect to Redis

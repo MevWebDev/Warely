@@ -1,10 +1,102 @@
-node_modules
-
 # Environment variables
 .env
 .env.local
-.env.production
 .env.development
+.env.production
+.env.staging
+.env.test
 
-# Keep example file
-!.env.example
+# Dependencies
+node_modules/
+*/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+.next/
+.nuxt/
+.cache/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+database/data/
+postgres_data/
+mongodb_data/
+redis_data/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Kubernetes secrets
+k8s/*secret*.yaml
+k8s/*-secret.yaml
+secrets/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Prisma
+services/*/prisma/migrations/
+!services/*/prisma/migrations/.gitkeep
+
+# Coverage and testing
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Package manager
+.pnpm-debug.log*
+.yarn-integrity
+package-lock.json
+yarn.lock
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# Security
+auth.json
+credentials.json
+service-account.json

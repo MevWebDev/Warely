@@ -16,11 +16,18 @@ model User {
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  sku         String   @unique
-  price       Decimal
-  stock       Int      @default(0)
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  price       Float
+  category    String   @db.VarChar(100)
+  brand       String?  @db.VarChar(100)
+  sku         String?  @unique @db.VarChar(50)
+  inStock     Boolean  @default(true)
+  quantity    Int      @default(0)
+  imageUrl    String?  @db.VarChar(500)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("products")
 }

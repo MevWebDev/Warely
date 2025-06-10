@@ -10,18 +10,32 @@
     "test": "pnpm -r test",
     "docker:dev": "docker-compose -f docker-compose.dev.yml --env-file .env.development up --build",
     "docker:dev:detached": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.development up -d --build",
-    "docker:prod": "docker-compose -f docker-compose.yml up -d --build  ",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up -d",
+    "docker:prod": "unset DOCKER_TLS_VERIFY DOCKER_HOST DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD && docker-compose -f docker-compose.yml --env-file .env.production up -d --build",
+    "docker:build": "docker-compose --env-file .env.production build",
+    "docker:up": "docker-compose --env-file .env.production up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:clean": "docker-compose down -v --remove-orphans",
-    "db:up": "docker-compose up -d postgres mongodb redis",
+    "docker:restart": "pnpm docker:down && pnpm docker:prod",
+    "docker:fresh": "pnpm docker:clean && pnpm docker:prod",
+    "db:up": "docker-compose --env-file .env.production up -d postgres mongodb redis",
     "db:down": "docker-compose stop postgres mongodb redis",
+    "db:restart": "pnpm db:down && sleep 2 && pnpm db:up",
     "db:logs": "docker-compose logs -f postgres mongodb redis",
-    "dev:local": "pnpm db:up && sleep 5 && pnpm -r --parallel dev"
+    "db:status": "docker-compose ps postgres mongodb redis",
+    "db:clean": "docker-compose down -v postgres mongodb redis",
+    "db:reset": "pnpm db:clean && pnpm db:up",
+    "dev:local": "pnpm db:up && sleep 5 && pnpm -r --parallel dev",
+    "dev:full": "pnpm docker:prod",
+    "k8s:deploy": "cd scripts && ./deploy-loadbalancer.sh",
+    "k8s:down": "kubectl delete deployment --all -n warely",
+    "health": "curl -s http://localhost:5000/health | jq '.' || curl -s http://localhost:5000/health",
+    "test:api": "curl -s http://localhost:5000/api/health | jq '.' || curl -s http://localhost:5000/api/health"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@mui/icons-material": "^7.1.1"
+  }
 }

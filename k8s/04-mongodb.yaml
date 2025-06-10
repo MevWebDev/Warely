@@ -1,9 +1,12 @@
-# k8s/mongodb-minimal.yaml
+# k8s/04-mongodb.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mongodb
   namespace: warely
+  labels:
+    app: mongodb
+    component: database
 spec:
   replicas: 1
   selector:
@@ -13,28 +16,77 @@ spec:
     metadata:
       labels:
         app: mongodb
+        component: database
     spec:
       containers:
         - name: mongodb
           image: mongo:5.0
           ports:
             - containerPort: 27017
-          # Minimalne zmienne środowiskowe
+              name: mongodb
           env:
+            # MongoDB root username from ConfigMap
             - name: MONGO_INITDB_ROOT_USERNAME
-              value: "admin"
+              valueFrom:
+                configMapKeyRef:
+                  name: warely-config
+                  key: MONGO_USER
+            # MongoDB root password from Secret
             - name: MONGO_INITDB_ROOT_PASSWORD
-              value: "password"
-          # Bez volume mounts, bez resource limits, bez health checks
+              valueFrom:
+                secretKeyRef:
+                  name: warely-secrets
+                  key: mongo-password
+            # Database name from ConfigMap
+            - name: MONGO_INITDB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: warely-config
+                  key: MONGO_DB
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: mongodb-storage
+              mountPath: /data/db
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: mongodb-storage
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mongodb
   namespace: warely
+  labels:
+    app: mongodb
 spec:
+  type: ClusterIP
   selector:
     app: mongodb
   ports:
     - port: 27017
       targetPort: 27017
+      protocol: TCP
+      name: mongodb

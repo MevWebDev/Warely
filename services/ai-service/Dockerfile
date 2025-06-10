@@ -1,45 +1,67 @@
-# services/ai-service/Dockerfile
-FROM python:3.11-slim
+# Multi-stage build for smaller production image
+FROM node:18-alpine AS builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+RUN apk add --no-cache libc6-compat curl
+
+# Install pnpm
+RUN npm install -g pnpm
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    gcc \
-    g++ \
-    make \
-    && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --upgrade pip
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy package files
+COPY package*.json ./
+COPY pnpm-lock.yaml* ./
+COPY tsconfig.json ./
 
-# Install Python dependencies with verbose output for debugging
-RUN pip install --no-cache-dir --verbose -r requirements.txt
+# Install all dependencies (including dev)
+RUN pnpm install --frozen-lockfile
 
-# Copy application code
-COPY . .
+# Copy source code
+COPY src/ ./src/
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash aiuser && \
-    chown -R aiuser:aiuser /app
-USER aiuser
+# Build TypeScript
+RUN pnpm run build
+
+# Production stage
+FROM node:18-alpine AS production
+
+RUN apk add --no-cache libc6-compat curl
+
+# Install pnpm
+RUN npm install -g pnpm
+
+
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=6000
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY pnpm-lock.yaml* ./
+
+# Install only production dependencies
+RUN pnpm install --frozen-lockfile --prod && pnpm store prune
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Change ownership of the app directory
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
 # Expose port
 EXPOSE 6000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:6000/health || exit 1
-
 # Start the application
-CMD ["python", "-m", "app.main"]
+CMD ["node", "dist/server.js"]
