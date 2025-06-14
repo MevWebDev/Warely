@@ -8,26 +8,166 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  role          Role            @default(WORKER)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  Order         Order[]
+  StockMovement StockMovement[]
 }
 
-model Product {
+model Category {
   id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(255)
+  name        String   @unique @db.VarChar(100)
   description String?  @db.Text
-  price       Float
-  category    String   @db.VarChar(100)
-  brand       String?  @db.VarChar(100)
-  sku         String?  @unique @db.VarChar(50)
-  inStock     Boolean  @default(true)
-  quantity    Int      @default(0)
-  imageUrl    String?  @db.VarChar(500)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Relations
+  products Product[]
+
+  @@map("categories")
+}
+
+model Supplier {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  contactEmail String?  @db.VarChar(255)
+  contactPhone String?  @db.VarChar(50)
+  address      String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  products Product[]
+  orders   Order[]
+
+  @@map("suppliers")
+}
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  sku         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  barCode     String? @db.Text
+
+  // Pricing
+  unitPrice Float @default(0) // Selling price
+  unitCost  Float @default(0) // Cost price
+
+  // Stock management
+  currentStock Int     @default(0)
+  reorderPoint Int     @default(10)
+  maxStock     Int     @default(1000)
+  location     String? @db.VarChar(100) // Warehouse location (A1, B2, etc.)
+
+  // Product details
+  brand      String? @db.VarChar(100)
+  weight     Float? // in kg
+  dimensions String? @db.VarChar(100) // "L x W x H"
+  imageUrl   String? @db.VarChar(500)
+
+  // Status
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  category       Category       @relation(fields: [categoryId], references: [id])
+  categoryId     Int
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  supplierId     Int?
+  stockMovements StockMovement[]
+  orderItems     OrderItem[]
+
   @@map("products")
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique @db.VarChar(100)
+  type        OrderType // INBOUND or OUTBOUND
+  status      OrderStatus @default(PENDING)
+
+  // Amounts
+  totalAmount Float @default(0)
+
+  // Dates
+  orderDate     DateTime  @default(now())
+  expectedDate  DateTime?
+  completedDate DateTime?
+
+  // Relations
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdById String
+  supplier    Supplier?   @relation(fields: [supplierId], references: [id])
+  supplierId  Int?
+  orderItems  OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int   @id @default(autoincrement())
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  // Relations
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+
+  @@map("order_items")
+}
+
+model StockMovement {
+  id           Int          @id @default(autoincrement())
+  movementType MovementType // IN, OUT, ADJUSTMENT
+  quantity     Int // Positive for IN, negative for OUT
+
+  // Reference to what caused this movement
+  referenceType String? @db.VarChar(50) // "order", "adjustment", "return"
+  referenceId   Int?
+
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  // Relations
+  product     Product @relation(fields: [productId], references: [id])
+  productId   Int
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdById String
+
+  @@map("stock_movements")
+}
+
+// Enums
+enum Role {
+  WORKER
+  MANAGER
+  OWNER
+}
+
+enum OrderType {
+  INBOUND // Receiving stock
+  OUTBOUND // Shipping orders
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum MovementType {
+  IN // Stock increase
+  OUT // Stock decrease
+  ADJUSTMENT // Manual adjustment
 }

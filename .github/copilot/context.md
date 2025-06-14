@@ -4,10 +4,10 @@ Architecture & Stack
 Microservices Architecture
 
 Frontend Service (React + TypeScript, Port 3000)
-Auth Service (OAuth2.0 Server, Node.js + Express, Port 4000)
+Auth0 auth
 Backend Service (Business Logic API, Node.js + Express, Port 5000)
 API Gateway (Nginx Reverse Proxy, Port 8080)
-Database Service (PostgreSQL + MongoDB)
+Database Service (PostgreSQL + MongoDB, Redis)
 
 Technology Stack
 Frontend:
@@ -38,7 +38,7 @@ Backend Service:
 
 AI Service:
 
-- FastApi, TensorFlow, scikit
+- Express, Machine Learning
 - redis and mongodb
 
 Databases:

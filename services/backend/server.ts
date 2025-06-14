@@ -11,7 +11,10 @@ import rateLimit from "express-rate-limit";
 import { connectDatabases } from "./config/database";
 import { errorHandler } from "./middleware/errorHandler";
 import { checkAuth0JWT } from "./middleware/auth0"; // Add this import
+
 import productsRoutes from "./routes/products";
+import categoriesRoutes from "./routes/categories";
+import suppliersRoutes from "./routes/suppliers";
 import analyticsRoutes from "./routes/analytics";
 
 const app = express();
@@ -72,6 +75,8 @@ app.get("/hello", checkAuth0JWT, (req: any, res) => {
 // Protected API routes (all require authentication)
 
 app.use("/api/products", productsRoutes);
+app.use("/api/categories", categoriesRoutes);
+app.use("/api/suppliers", suppliersRoutes);
 app.use("/api/analytics", analyticsRoutes);
 
 // Error handling
