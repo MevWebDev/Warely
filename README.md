@@ -25,7 +25,7 @@ Before running Warely, ensure you have the following installed:
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone git@github.com:MevWebDev/Warely.git
 cd Warely
 
 # Start all services with Docker Compose
@@ -61,7 +61,7 @@ pnpm db:clean       # Remove all data (⚠️ destructive)
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone git@github.com:MevWebDev/Warely.git
 cd Warely
 
 # Deploy to Kubernetes
