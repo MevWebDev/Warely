@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { handleZodError } from "../utils/zod";
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -10,20 +11,13 @@ const createCategorySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   warehouseId: z.number().int(),
-  isActive: z.boolean(),
+  isActive: z.boolean().optional(),
 });
 
 // Patch schema - all fields optional for partial updates
 const patchCategorySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional(),
-});
-
-// Helper function
-const handleZodError = (error: z.ZodError) => ({
-  success: false,
-  message: "Validation failed",
-  errors: error.errors.map((e) => `${e.path.join(".")}: ${e.message}`),
 });
 
 // CREATE category

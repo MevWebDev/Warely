@@ -135,7 +135,7 @@ model Supplier {
 
 model Product {
   id           Int     @id @default(autoincrement())
-  sku          String  @unique @db.VarChar(50)
+  sku          String  @db.VarChar(50)
   name         String  @db.VarChar(255)
   description  String? @db.Text
   barCode      String? @db.VarChar(100)
@@ -176,7 +176,7 @@ model Product {
   pickItems        PickItem[]
   receivingItems   ReceivingItem[]
   deliveryItems    DeliveryItem[]
-  
+  @@unique([sku, warehouseId])
   @@map("products")
 }
 

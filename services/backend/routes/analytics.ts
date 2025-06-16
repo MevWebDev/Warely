@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { Analytics } from "../models/analytics";
 import { z } from "zod";
+import { handleZodError } from "../utils/zod";
 
 const router: Router = Router();
 

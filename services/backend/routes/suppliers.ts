@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { handleZodError } from "../utils/zod";
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -19,13 +20,6 @@ const patchSupplierSchema = z.object({
   contactEmail: z.string().email().optional(),
   contactPhone: z.string().max(50).optional(),
   address: z.string().optional(),
-});
-
-// Helper function
-const handleZodError = (error: z.ZodError) => ({
-  success: false,
-  message: "Validation failed",
-  errors: error.errors.map((e) => `${e.path.join(".")}: ${e.message}`),
 });
 
 // CREATE supplier

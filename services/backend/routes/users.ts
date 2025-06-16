@@ -6,6 +6,7 @@ import {
   requireWarehouseAccess,
   requireWarehouseRole,
 } from "../middleware/auth0";
+import { handleZodError } from "../utils/zod";
 
 const router: Router = Router();
 const prisma = new PrismaClient();

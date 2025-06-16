@@ -90,6 +90,7 @@ export const UserInitializer: FC = () => {
       const callApi = async () => {
         try {
           const token = await getAccessTokenSilently();
+          console.log(token);
           await axios.post(
             "http://localhost:5000/api/users/auth/login",
             {},

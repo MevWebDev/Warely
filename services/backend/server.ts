@@ -22,6 +22,8 @@ import categoriesRoutes from "./routes/categories";
 import suppliersRoutes from "./routes/suppliers";
 import analyticsRoutes from "./routes/analytics";
 import usersRoutes from "./routes/users";
+import warehousesRoutes from "./routes/warehouses";
+import warehousesUsersRoutes from "./routes/warehouseUsers";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -90,6 +92,8 @@ app.use("/api/categories", categoriesRoutes);
 app.use("/api/suppliers", suppliersRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/warehouse-users", warehousesUsersRoutes);
+app.use("/api/warehouses", warehousesRoutes);
 
 // Error handling
 app.use(errorHandler);

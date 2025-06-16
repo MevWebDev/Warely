@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { handleZodError } from "../utils/zod";
 import {
   authenticateToken,
   requireWarehouseAccess,
@@ -30,7 +31,6 @@ const createProductSchema = z.object({
   dimensions: z.string().max(100).optional(),
   imageUrl: z.string().url().optional(),
   isActive: z.boolean().default(true),
-  warehouseId: z.number().int(),
 });
 
 // Patch schema - all fields optional (except currentStock which shouldn't be updated directly)
@@ -52,13 +52,6 @@ const patchProductSchema = z.object({
   dimensions: z.string().max(100).optional(),
   imageUrl: z.string().url().optional(),
   isActive: z.boolean().optional(),
-});
-
-// Helper function
-const handleZodError = (error: z.ZodError) => ({
-  success: false,
-  message: "Validation failed",
-  errors: error.errors.map((e) => `${e.path.join(".")}: ${e.message}`),
 });
 
 // CREATE - Add authentication and warehouse context
