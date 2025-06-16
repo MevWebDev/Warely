@@ -9,7 +9,7 @@ import {
   Button,
 } from "@mui/material";
 import { ApiOutlined } from "@mui/icons-material";
-import { LoginButton, UserProfile, LoadingSpinner } from "./components/Auth";
+import { LoginButton, LoadingSpinner, LogoutButton } from "./components/Auth";
 import { useAuthenticatedApi } from "./hooks/useAuthenticatedApi";
 import logo from "./assets/logo.svg";
 
@@ -91,8 +91,7 @@ const App: FC = () => {
           <Typography fontSize={64} textAlign={"center"} lineHeight={1}>
             Welcome to <br /> Warely
           </Typography>
-          <UserProfile />
-
+          <LogoutButton />
           <TestApiCall />
         </Box>
       )}

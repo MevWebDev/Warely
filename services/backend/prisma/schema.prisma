@@ -7,115 +7,243 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String?
-  role          Role            @default(WORKER)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  Order         Order[]
-  StockMovement StockMovement[]
+// Core Entities
+model Warehouse {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  code        String   @unique @db.VarChar(10) // WHX001
+  location    String?  @db.VarChar(500)
+  address     String?  @db.Text
+  isActive    Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  users       WarehouseUser[]
+  products    Product[]
+  categories  Category[]
+  orders      Order[]
+  locations   Location[]
+  receivings  Receiving[]
+  deliveries  Delivery[]
+  
+  
+  @@map("warehouses")
 }
 
+model User {
+  id             Int      @id @default(autoincrement())
+  auth0Id        String   @unique
+  email          String   @unique @db.VarChar(255)
+  name           String   @db.VarChar(255)
+  profilePicture String?  @db.VarChar(500)
+  isActive       Boolean  @default(true)
+  // REMOVED: role field (now handled by WarehouseUser)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  stockMovements    StockMovement[]
+  warehouseAccess   WarehouseUser[]
+  ordersCreated     Order[]
+  pickListsAssigned PickList[] @relation("AssignedPicker")
+  receivings        Receiving[]
+  deliveriesCreated Delivery[]
+  
+  @@map("users")
+}
+
+model WarehouseUser {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  warehouseId Int
+  role        WarehouseRole @default(WORKER)
+  isActive    Boolean       @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, warehouseId])
+  @@map("warehouse_users")
+}
+
+// Physical Structure
+model Location {
+  id          Int     @id @default(autoincrement())
+  code        String  @db.VarChar(20)  // A1-B2-C3 or "Building-A"
+  name        String? @db.VarChar(100) // "Main Storage Building"
+  type        LocationType @default(STORAGE) // Building, Zone, Aisle, Shelf, Bin
+  zone        String? @db.VarChar(50)  // Picking, Storage, Receiving
+  aisle       String? @db.VarChar(10)
+  shelf       String? @db.VarChar(10)
+  bin         String? @db.VarChar(10)
+  capacity    Int?    // Max items this location can hold
+  isActive    Boolean @default(true)
+  
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  // Relations
+  productLocations ProductLocation[]
+  
+  @@unique([warehouseId, code])
+  @@map("locations")
+}
+
+// Product Management
 model Category {
   id          Int      @id @default(autoincrement())
-  name        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(100)
   description String?  @db.Text
+  warehouseId Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
+  isActive    Boolean  @default(true)
   // Relations
   products Product[]
-
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  @@unique([name,warehouseId])
   @@map("categories")
 }
 
 model Supplier {
   id           Int      @id @default(autoincrement())
-  name         String   @db.VarChar(255)
+  name         String   @unique @db.VarChar(255)
   contactEmail String?  @db.VarChar(255)
   contactPhone String?  @db.VarChar(50)
   address      String?  @db.Text
+  website      String?  @db.VarChar(255)
+  taxId        String?  @db.VarChar(50)
+  isActive     Boolean  @default(true)
+  
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
-  products Product[]
-  orders   Order[]
+  products   Product[]
+  orders     Order[]
+  deliveries Delivery[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id          Int     @id @default(autoincrement())
-  sku         String  @unique @db.VarChar(50)
-  name        String  @db.VarChar(255)
-  description String? @db.Text
-  barCode     String? @db.Text
-
+  id           Int     @id @default(autoincrement())
+  sku          String  @unique @db.VarChar(50)
+  name         String  @db.VarChar(255)
+  description  String? @db.Text
+  barCode      String? @db.VarChar(100)
+  
   // Pricing
-  unitPrice Float @default(0) // Selling price
-  unitCost  Float @default(0) // Cost price
-
-  // Stock management
+  unitPrice    Decimal @db.Decimal(10, 2)
+  unitCost     Decimal @db.Decimal(10, 2)
+  
+  // Inventory
   currentStock Int     @default(0)
+  reservedStock Int    @default(0) // Stock allocated but not shipped
   reorderPoint Int     @default(10)
   maxStock     Int     @default(1000)
-  location     String? @db.VarChar(100) // Warehouse location (A1, B2, etc.)
+  minOrderQty  Int     @default(1)
 
-  // Product details
-  brand      String? @db.VarChar(100)
-  weight     Float? // in kg
-  dimensions String? @db.VarChar(100) // "L x W x H"
-  imageUrl   String? @db.VarChar(500)
-
-  // Status
-  isActive Boolean @default(true)
-
+  // Physical properties
+  brand        String? @db.VarChar(100)
+  weight       Decimal? @db.Decimal(8, 3) // in kg
+  dimensions   String? @db.VarChar(100)   // "L×W×H cm"
+  imageUrl     String? @db.VarChar(500)
+  isActive     Boolean @default(true)
+  
+  // Foreign keys
+  categoryId  Int
+  supplierId  Int?
+  warehouseId Int
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  
   // Relations
-  category       Category       @relation(fields: [categoryId], references: [id])
-  categoryId     Int
-  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
-  supplierId     Int?
-  stockMovements StockMovement[]
-  orderItems     OrderItem[]
-
+  category         Category          @relation(fields: [categoryId], references: [id])
+  supplier         Supplier?         @relation(fields: [supplierId], references: [id])
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
+  stockMovements   StockMovement[]
+  orderItems       OrderItem[]
+  productLocations ProductLocation[]
+  pickItems        PickItem[]
+  receivingItems   ReceivingItem[]
+  deliveryItems    DeliveryItem[]
+  
   @@map("products")
 }
 
+model ProductLocation {
+  id          Int @id @default(autoincrement())
+  productId   Int
+  locationId  Int
+  quantity    Int @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  product  Product  @relation(fields: [productId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  
+  @@unique([productId, locationId])
+  @@map("product_locations")
+}
+
+// Order Management
 model Order {
   id          Int         @id @default(autoincrement())
   orderNumber String      @unique @db.VarChar(100)
-  type        OrderType // INBOUND or OUTBOUND
+  type        OrderType
   status      OrderStatus @default(PENDING)
+  priority    Priority    @default(NORMAL)
+
+  // Customer/Vendor info
+  customerName    String? @db.VarChar(255)
+  customerEmail   String? @db.VarChar(255)
+  customerPhone   String? @db.VarChar(50)
+  shippingAddress String? @db.Text
+  billingAddress  String? @db.Text
 
   // Amounts
-  totalAmount Float @default(0)
+  subtotal    Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount   Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount Decimal @default(0) @db.Decimal(10, 2)
 
   // Dates
   orderDate     DateTime  @default(now())
   expectedDate  DateTime?
   completedDate DateTime?
+  
+  notes String? @db.Text
 
   // Relations
-  createdBy   User        @relation(fields: [createdById], references: [id])
-  createdById String
-  supplier    Supplier?   @relation(fields: [supplierId], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdById Int
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
   supplierId  Int?
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId Int
+  
   orderItems  OrderItem[]
+  pickLists   PickList[]
+  receivings  Receiving[]
+  deliveries  Delivery[]
 
   @@map("orders")
 }
 
 model OrderItem {
-  id         Int   @id @default(autoincrement())
+  id         Int     @id @default(autoincrement())
   quantity   Int
-  unitPrice  Float
-  totalPrice Float
+  unitPrice  Decimal @db.Decimal(10, 2)
+  totalPrice Decimal @db.Decimal(10, 2)
 
   // Relations
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -126,14 +254,144 @@ model OrderItem {
   @@map("order_items")
 }
 
+// Picking Process
+model PickList {
+  id         Int        @id @default(autoincrement())
+  listNumber String     @unique @db.VarChar(50)
+  status     PickStatus @default(PENDING)
+  priority   Priority   @default(NORMAL)
+  
+  orderId      Int
+  order        Order @relation(fields: [orderId], references: [id])
+  assignedTo   Int?
+  assignedUser User? @relation("AssignedPicker", fields: [assignedTo], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  items PickItem[]
+  
+  @@map("pick_lists")
+}
+
+model PickItem {
+  id               Int @id @default(autoincrement())
+  quantityRequired Int
+  quantityPicked   Int @default(0)
+  
+  pickListId Int
+  pickList   PickList @relation(fields: [pickListId], references: [id])
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  
+  @@map("pick_items")
+}
+
+// Receiving Process
+model Receiving {
+  id            Int             @id @default(autoincrement())
+  receiptNumber String          @unique @db.VarChar(50)
+  status        ReceivingStatus @default(PENDING)
+  
+  orderId     Int?
+  order       Order?    @relation(fields: [orderId], references: [id])
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  receivedBy   Int
+  receivedUser User @relation(fields: [receivedBy], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  items ReceivingItem[]
+  
+  @@map("receivings")
+}
+
+model ReceivingItem {
+  id               Int @id @default(autoincrement())
+  quantityExpected Int
+  quantityReceived Int @default(0)
+  
+  receivingId Int
+  receiving   Receiving @relation(fields: [receivingId], references: [id])
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id])
+  
+  @@map("receiving_items")
+}
+
+// NEW: Delivery Management (Incoming & Outgoing)
+model Delivery {
+  id             Int            @id @default(autoincrement())
+  deliveryNumber String         @unique @db.VarChar(50)
+  type           DeliveryType   // INCOMING or OUTGOING
+  status         DeliveryStatus @default(SCHEDULED)
+  
+  // Delivery details
+  carrierName     String?  @db.VarChar(255)
+  trackingNumber  String?  @db.VarChar(100)
+  vehicleInfo     String?  @db.VarChar(255)
+  driverName      String?  @db.VarChar(255)
+  driverPhone     String?  @db.VarChar(50)
+  
+  // Addresses
+  pickupAddress   String?  @db.Text
+  deliveryAddress String?  @db.Text
+  
+  // Dates
+  scheduledDate   DateTime?
+  actualDate      DateTime?
+  estimatedTime   String?  @db.VarChar(50) // "2-4 hours"
+  
+  notes String? @db.Text
+  
+  // Relations
+  orderId     Int?
+  order       Order?    @relation(fields: [orderId], references: [id])
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  supplierId  Int?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdById Int
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  items DeliveryItem[]
+  
+  @@map("deliveries")
+}
+
+model DeliveryItem {
+  id               Int @id @default(autoincrement())
+  quantityExpected Int
+  quantityActual   Int @default(0)
+  condition        String? @db.VarChar(100) // "Good", "Damaged", etc.
+  
+  deliveryId Int
+  delivery   Delivery @relation(fields: [deliveryId], references: [id])
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  
+  @@map("delivery_items")
+}
+
+// Stock Movement Tracking
 model StockMovement {
   id           Int          @id @default(autoincrement())
-  movementType MovementType // IN, OUT, ADJUSTMENT
+  movementType MovementType
   quantity     Int // Positive for IN, negative for OUT
 
   // Reference to what caused this movement
-  referenceType String? @db.VarChar(50) // "order", "adjustment", "return"
+  referenceType String? @db.VarChar(50) // "order", "adjustment", "return", "delivery"
   referenceId   Int?
+
+  // Location info
+  fromLocationId Int?
+  toLocationId   Int?
 
   notes     String?  @db.Text
   createdAt DateTime @default(now())
@@ -142,21 +400,21 @@ model StockMovement {
   product     Product @relation(fields: [productId], references: [id])
   productId   Int
   createdBy   User    @relation(fields: [createdById], references: [id])
-  createdById String
+  createdById Int
 
   @@map("stock_movements")
 }
 
 // Enums
-enum Role {
-  WORKER
-  MANAGER
-  OWNER
+enum WarehouseRole {
+  WORKER   // Basic operations
+  MANAGER  // Manage orders, reports, users
+  OWNER    // Full warehouse control
 }
 
 enum OrderType {
-  INBOUND // Receiving stock
-  OUTBOUND // Shipping orders
+  INBOUND  // Purchase orders (receiving stock)
+  OUTBOUND // Sales orders (shipping orders)
 }
 
 enum OrderStatus {
@@ -166,8 +424,51 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PickStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ReceivingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DeliveryType {
+  INCOMING // Suppliers delivering to warehouse
+  OUTGOING // Warehouse shipping to customers
+}
+
+enum DeliveryStatus {
+  SCHEDULED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum LocationType {
+  BUILDING // Main structures
+  ZONE     // Areas within buildings
+  AISLE    // Rows of storage
+  SHELF    // Storage shelves
+  BIN      // Individual storage bins
+  STORAGE  // General storage area
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum MovementType {
-  IN // Stock increase
-  OUT // Stock decrease
+  IN         // Stock increase
+  OUT        // Stock decrease
   ADJUSTMENT // Manual adjustment
+  TRANSFER   // Move between locations
 }

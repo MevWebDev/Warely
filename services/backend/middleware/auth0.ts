@@ -1,79 +1,274 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import jwt from "jsonwebtoken";
-import jwksClient from "jwks-rsa";
 import { Request, Response, NextFunction } from "express";
+import { PrismaClient } from "@prisma/client";
+import axios from "axios";
+
+const prisma = new PrismaClient();
 
 interface AuthRequest extends Request {
-  user?: any;
+  user?: {
+    sub: string;
+    email: string;
+    name: string;
+    picture?: string;
+    dbUser?: any;
+    warehouses?: any[];
+    currentWarehouse?: any;
+    [key: string]: any;
+  };
 }
 
-const client = jwksClient({
-  jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
-  requestHeaders: {}, // Optional
-  timeout: 30000, // Defaults to 30s
-});
-
-function getKey(header: any, callback: any) {
-  client.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      console.error("JWKS Error:", err);
-      return callback(err);
-    }
-    const signingKey = key?.getPublicKey();
-    callback(null, signingKey);
-  });
-}
-
-export const checkAuth0JWT = (
+// Main authentication middleware with automatic user creation
+export const authenticateToken = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  console.log("🔐 Auth middleware called");
-  console.log("📋 Headers:", req.headers.authorization);
-
-  const token = req.headers.authorization?.replace("Bearer ", "");
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    console.log("❌ No token provided");
     return res.status(401).json({
-      error: "No token provided",
-      message: "Authorization header with Bearer token required",
+      success: false,
+      message: "Access token required",
     });
   }
 
-  console.log(
-    "🔍 Token received (first 50 chars):",
-    token.substring(0, 50) + "..."
-  );
-  console.log("🎯 Expected audience:", process.env.AUTH0_AUDIENCE);
-  console.log("🏢 Expected issuer:", `https://${process.env.AUTH0_DOMAIN}/`);
+  try {
+    // Verify token with Auth0 and get user info
+    const response = await axios.get(
+      `https://${process.env.AUTH0_DOMAIN}/userinfo`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
-  jwt.verify(
-    token,
-    getKey,
-    {
-      audience: process.env.AUTH0_AUDIENCE,
-      issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-      algorithms: ["RS256"],
-    },
-    (err, decoded) => {
-      if (err) {
-        console.error("❌ JWT verification error:", err.message);
-        console.error("❌ Full error:", err);
-        return res.status(401).json({
-          error: "Invalid token",
-          message: err.message,
-          details: process.env.NODE_ENV === "development" ? err : undefined,
-        });
+    const auth0User = response.data;
+    console.log("Auth0 user info:", auth0User);
+
+    // Find or create user in database
+    let dbUser = await prisma.user.findUnique({
+      where: { auth0Id: auth0User.sub },
+      include: {
+        warehouseAccess: {
+          include: {
+            warehouse: true,
+          },
+          where: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!dbUser) {
+      // Create new user automatically
+      console.log("Creating new user for:", auth0User.email);
+
+      dbUser = await prisma.user.create({
+        data: {
+          auth0Id: auth0User.sub,
+          email: auth0User.email || `user-${Date.now()}@temp.com`,
+          name: auth0User.name || auth0User.nickname || "New User",
+          profilePicture: auth0User.picture || null,
+          isActive: true,
+        },
+        include: {
+          warehouseAccess: {
+            include: {
+              warehouse: true,
+            },
+          },
+        },
+      });
+
+      console.log("New user created successfully:", dbUser.email);
+    } else {
+      // Update user info if it has changed
+      const updates: any = {};
+
+      if (auth0User.email && auth0User.email !== dbUser.email) {
+        updates.email = auth0User.email;
+      }
+      if (auth0User.name && auth0User.name !== dbUser.name) {
+        updates.name = auth0User.name;
+      }
+      if (auth0User.picture && auth0User.picture !== dbUser.profilePicture) {
+        updates.profilePicture = auth0User.picture;
       }
 
-      console.log("✅ JWT verified successfully");
-      console.log("👤 User info:", decoded);
-      req.user = decoded;
-      next();
+      if (Object.keys(updates).length > 0) {
+        console.log("Updating user info:", updates);
+        dbUser = await prisma.user.update({
+          where: { id: dbUser.id },
+          data: updates,
+          include: {
+            warehouseAccess: {
+              include: {
+                warehouse: true,
+              },
+            },
+          },
+        });
+      }
     }
-  );
+
+    // Handle warehouse context from header
+    const warehouseId = req.headers["x-warehouse-id"] as string;
+    let currentWarehouse = null;
+
+    if (warehouseId) {
+      // Find specific warehouse access
+      currentWarehouse = dbUser.warehouseAccess.find(
+        (wa) => wa.warehouseId === parseInt(warehouseId) && wa.isActive
+      );
+
+      if (!currentWarehouse) {
+        return res.status(403).json({
+          success: false,
+          message: `No access to warehouse ${warehouseId}`,
+          availableWarehouses: dbUser.warehouseAccess.map((wa) => ({
+            id: wa.warehouseId,
+            name: wa.warehouse.name,
+            role: wa.role,
+          })),
+        });
+      }
+    } else if (dbUser.warehouseAccess.length > 0) {
+      // Default to first warehouse if no header specified
+      currentWarehouse = dbUser.warehouseAccess[0];
+    }
+
+    // Attach complete user data to request
+    req.user = {
+      sub: auth0User.sub,
+      email: auth0User.email,
+      name: auth0User.name,
+      picture: auth0User.picture,
+      dbUser: dbUser,
+      warehouses: dbUser.warehouseAccess,
+      currentWarehouse: currentWarehouse,
+    };
+
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid or expired token",
+        });
+      }
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Authentication service error",
+    });
+  }
 };
+
+// Updated role-based authorization for warehouse context
+export const requireWarehouseRole = (allowedRoles: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user?.dbUser) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (!req.user.currentWarehouse) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Warehouse context required. Please specify X-Warehouse-Id header.",
+        availableWarehouses: req.user.warehouses?.map((w) => ({
+          id: w.warehouseId,
+          name: w.warehouse.name,
+          role: w.role,
+        })),
+      });
+    }
+
+    const userRole = req.user.currentWarehouse.role;
+    if (!allowedRoles.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `Insufficient permissions in this warehouse. Required: ${allowedRoles.join(
+          " or "
+        )}, Current: ${userRole}`,
+      });
+    }
+
+    next();
+  };
+};
+
+// Check if user has access to any warehouse
+export const requireWarehouseAccess = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user?.dbUser) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+
+  if (!req.user.warehouses || req.user.warehouses.length === 0) {
+    return res.status(403).json({
+      success: false,
+      message:
+        "No warehouse access. Please contact an administrator to get access to a warehouse.",
+    });
+  }
+
+  next();
+};
+
+// Check if user is authenticated (no warehouse required)
+export const requireAuth = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user?.dbUser) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+  next();
+};
+
+// Get current user's warehouse role
+export const getCurrentWarehouseRole = (req: AuthRequest): string | null => {
+  return req.user?.currentWarehouse?.role || null;
+};
+
+// Check if user has specific role in current warehouse
+export const hasWarehouseRole = (req: AuthRequest, role: string): boolean => {
+  const currentRole = getCurrentWarehouseRole(req);
+
+  // Role hierarchy: OWNER > MANAGER > WORKER
+  const roleHierarchy = {
+    OWNER: 3,
+    MANAGER: 2,
+    WORKER: 1,
+  };
+
+  const userLevel =
+    roleHierarchy[currentRole as keyof typeof roleHierarchy] || 0;
+  const requiredLevel = roleHierarchy[role as keyof typeof roleHierarchy] || 0;
+
+  return userLevel >= requiredLevel;
+};
+
+export { AuthRequest };

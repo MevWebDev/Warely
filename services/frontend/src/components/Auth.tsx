@@ -1,15 +1,15 @@
-import { type FC } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { darken } from "@mui/material";
 import {
   Button,
-  Avatar,
   Box,
   Typography,
   CircularProgress,
   Stack,
 } from "@mui/material";
 import { Login, Logout } from "@mui/icons-material";
+import axios from "axios";
 
 export const LoadingSpinner: FC = () => (
   <Box
@@ -78,28 +78,75 @@ export const LogoutButton: FC = () => {
   );
 };
 
-export const UserProfile: FC = () => {
-  const { user, isAuthenticated } = useAuth0();
+// Simple component that just calls the API once after login
+export const UserInitializer: FC = () => {
+  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const hasInitialized = useRef(false);
 
-  if (!isAuthenticated || !user) return null;
+  useEffect(() => {
+    if (isAuthenticated && !hasInitialized.current) {
+      hasInitialized.current = true;
+
+      const callApi = async () => {
+        try {
+          const token = await getAccessTokenSilently();
+          await axios.post(
+            "http://localhost:5000/api/users/auth/login",
+            {},
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          console.log("User created/updated");
+        } catch (err) {
+          console.error("API call failed:", err);
+        }
+      };
+
+      callApi();
+    }
+  }, [isAuthenticated, getAccessTokenSilently]);
+
+  return null;
+};
+
+// Simple Auth Guard
+export const AuthGuard: FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth0();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+        sx={{
+          backgroundColor: "black",
+          color: "white",
+        }}
+      >
+        <Stack spacing={3} alignItems="center">
+          <Typography variant="h4" gutterBottom>
+            Welcome to Warely
+          </Typography>
+          <Typography color="text.secondary" textAlign="center">
+            Your complete warehouse management solution
+          </Typography>
+          <LoginButton />
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 1,
-      }}
-    >
-      <Avatar src={user.picture} sx={{ width: 96, height: 96 }}></Avatar>
-      <Box
-        sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}
-      >
-        <Typography fontSize={32}>{user.name}</Typography>
-        <Typography fontSize={18}>{user.email}</Typography>
-      </Box>
-      <LogoutButton />
+    <Box sx={{ backgroundColor: "black", color: "white", minHeight: "100vh" }}>
+      <UserInitializer />
+      {children}
     </Box>
   );
 };

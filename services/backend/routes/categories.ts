@@ -9,6 +9,8 @@ const prisma = new PrismaClient();
 const createCategorySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
+  warehouseId: z.number().int(),
+  isActive: z.boolean(),
 });
 
 // Patch schema - all fields optional for partial updates

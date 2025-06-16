@@ -10,12 +10,18 @@ import rateLimit from "express-rate-limit";
 
 import { connectDatabases } from "./config/database";
 import { errorHandler } from "./middleware/errorHandler";
-import { checkAuth0JWT } from "./middleware/auth0"; // Add this import
+import {
+  authenticateToken,
+  requireWarehouseRole,
+  requireWarehouseAccess,
+  requireAuth,
+} from "./middleware/auth0"; // Add this import
 
 import productsRoutes from "./routes/products";
 import categoriesRoutes from "./routes/categories";
 import suppliersRoutes from "./routes/suppliers";
 import analyticsRoutes from "./routes/analytics";
+import usersRoutes from "./routes/users";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,17 +66,22 @@ app.get("/health", (req, res) => {
 });
 
 // Protected hello endpoint (auth required)
-app.get("/hello", checkAuth0JWT, (req: any, res) => {
-  res.json({
-    message: "Hello from Warely Backend! 🎉",
-    user: {
-      sub: req.user.sub,
-      email: req.user.email,
-      name: req.user.name,
-    },
-    timestamp: new Date().toISOString(),
-  });
-});
+app.get(
+  "/hello",
+  authenticateToken,
+
+  (req: any, res) => {
+    res.json({
+      message: "Hello from Warely Backend! 🎉",
+      user: {
+        sub: req.user.sub,
+        email: req.user.email,
+        name: req.user.name,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+);
 
 // Protected API routes (all require authentication)
 
@@ -78,6 +89,7 @@ app.use("/api/products", productsRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/suppliers", suppliersRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/users", usersRoutes);
 
 // Error handling
 app.use(errorHandler);
