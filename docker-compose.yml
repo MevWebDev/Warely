@@ -71,13 +71,14 @@ services:
     ports:
       - "6001:6000"
     environment:
-      - NODE_ENV=${NODE_ENV}
+      - NODE_ENV=production
       - PORT=${AI_PORT}
       - DATABASE_URL=${DATABASE_URL}
       - MONGODB_URL=${MONGODB_URL}
       - REDIS_URL=${REDIS_URL}
       - AUTH0_DOMAIN=${AUTH0_DOMAIN}
       - AUTH0_AUDIENCE=${AUTH0_AUDIENCE}
+      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
 
     depends_on:
       - mongodb
@@ -111,6 +112,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
 
     depends_on:
       postgres:

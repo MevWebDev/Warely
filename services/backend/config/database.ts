@@ -1,5 +1,5 @@
 // services/backend/config/database.ts
-// services/backend/config/database.ts
+
 import { PrismaClient } from "@prisma/client";
 import mongoose from "mongoose";
 import { createClient, RedisClientType } from "redis";

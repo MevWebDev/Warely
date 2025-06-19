@@ -537,6 +537,17 @@ router.post(
       const { email, role } = req.body;
       const userId = req.user!.dbUser.id;
 
+      const warehouse = await prisma.warehouse.findFirst({
+        where: { id: id },
+      });
+
+      if (!warehouse) {
+        return res.status(400).json({
+          success: false,
+          message: "Warehouse not found, make sure to provide correct id",
+        });
+      }
+
       // Validate role
       if (!["WORKER", "MANAGER", "OWNER"].includes(role)) {
         return res.status(400).json({

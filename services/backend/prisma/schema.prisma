@@ -23,12 +23,14 @@ model Warehouse {
   users       WarehouseUser[]
   products    Product[]
   categories  Category[]
+  suppliers   Supplier[]
   orders      Order[]
   locations   Location[]
-  receivings  Receiving[]
-  deliveries  Delivery[]
-  
-  
+
+  reports         Report[]
+  kpis            KPI[]
+  analyticsEvents AnalyticsEvent[]
+
   @@map("warehouses")
 }
 
@@ -49,8 +51,9 @@ model User {
   warehouseAccess   WarehouseUser[]
   ordersCreated     Order[]
   pickListsAssigned PickList[] @relation("AssignedPicker")
-  receivings        Receiving[]
-  deliveriesCreated Delivery[]
+
+  reports         Report[]
+  analyticsEvents AnalyticsEvent[]
   
   @@map("users")
 }
@@ -75,23 +78,30 @@ model WarehouseUser {
 
 // Physical Structure
 model Location {
-  id          Int     @id @default(autoincrement())
-  code        String  @db.VarChar(20)  // A1-B2-C3 or "Building-A"
-  name        String? @db.VarChar(100) // "Main Storage Building"
-  type        LocationType @default(STORAGE) // Building, Zone, Aisle, Shelf, Bin
-  zone        String? @db.VarChar(50)  // Picking, Storage, Receiving
-  aisle       String? @db.VarChar(10)
-  shelf       String? @db.VarChar(10)
-  bin         String? @db.VarChar(10)
-  capacity    Int?    // Max items this location can hold
-  isActive    Boolean @default(true)
-  
-  warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  
+  id               Int      @id @default(autoincrement())
+  code             String   @db.VarChar(20)
+  name             String?  @db.VarChar(100)
+  type             LocationType @default(STORAGE)
+  zone             String?  @db.VarChar(50)
+  aisle            String?  @db.VarChar(10)
+  shelf            String?  @db.VarChar(10)
+  bin              String?  @db.VarChar(10)
+  capacity         Int?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
   // Relations
+  warehouse        Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId      Int
   productLocations ProductLocation[]
   
+  // ✅ Add these relation fields for stock movements
+  stockMovementsFrom StockMovement[] @relation("StockMovementFrom")
+  stockMovementsTo   StockMovement[] @relation("StockMovementTo")
+
+  analyticsEvents AnalyticsEvent[]
+
   @@unique([warehouseId, code])
   @@map("locations")
 }
@@ -108,28 +118,32 @@ model Category {
   // Relations
   products Product[]
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  analyticsEvents AnalyticsEvent[]
+  
   @@unique([name,warehouseId])
   @@map("categories")
 }
 
 model Supplier {
   id           Int      @id @default(autoincrement())
-  name         String   @unique @db.VarChar(255)
+  name         String   @db.VarChar(255)
   contactEmail String?  @db.VarChar(255)
   contactPhone String?  @db.VarChar(50)
   address      String?  @db.Text
   website      String?  @db.VarChar(255)
   taxId        String?  @db.VarChar(50)
   isActive     Boolean  @default(true)
-  
+  warehouseId  Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
-  products   Product[]
-  orders     Order[]
-  deliveries Delivery[]
+  products     Product[]
+  orders       Order[]
+  warehouse    Warehouse @relation(fields:[warehouseId], references: [id])
+  analyticsEvents AnalyticsEvent[]
 
+  @@unique([name, warehouseId])
   @@map("suppliers")
 }
 
@@ -174,8 +188,8 @@ model Product {
   orderItems       OrderItem[]
   productLocations ProductLocation[]
   pickItems        PickItem[]
-  receivingItems   ReceivingItem[]
-  deliveryItems    DeliveryItem[]
+  analyticsEvents AnalyticsEvent[]
+  
   @@unique([sku, warehouseId])
   @@map("products")
 }
@@ -233,8 +247,8 @@ model Order {
   
   orderItems  OrderItem[]
   pickLists   PickList[]
-  receivings  Receiving[]
-  deliveries  Delivery[]
+ 
+  analyticsEvents AnalyticsEvent[]
 
   @@map("orders")
 }
@@ -287,122 +301,135 @@ model PickItem {
   @@map("pick_items")
 }
 
-// Receiving Process
-model Receiving {
-  id            Int             @id @default(autoincrement())
-  receiptNumber String          @unique @db.VarChar(50)
-  status        ReceivingStatus @default(PENDING)
-  
-  orderId     Int?
-  order       Order?    @relation(fields: [orderId], references: [id])
-  warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  
-  receivedBy   Int
-  receivedUser User @relation(fields: [receivedBy], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  items ReceivingItem[]
-  
-  @@map("receivings")
-}
-
-model ReceivingItem {
-  id               Int @id @default(autoincrement())
-  quantityExpected Int
-  quantityReceived Int @default(0)
-  
-  receivingId Int
-  receiving   Receiving @relation(fields: [receivingId], references: [id])
-  productId   Int
-  product     Product   @relation(fields: [productId], references: [id])
-  
-  @@map("receiving_items")
-}
-
-// NEW: Delivery Management (Incoming & Outgoing)
-model Delivery {
-  id             Int            @id @default(autoincrement())
-  deliveryNumber String         @unique @db.VarChar(50)
-  type           DeliveryType   // INCOMING or OUTGOING
-  status         DeliveryStatus @default(SCHEDULED)
-  
-  // Delivery details
-  carrierName     String?  @db.VarChar(255)
-  trackingNumber  String?  @db.VarChar(100)
-  vehicleInfo     String?  @db.VarChar(255)
-  driverName      String?  @db.VarChar(255)
-  driverPhone     String?  @db.VarChar(50)
-  
-  // Addresses
-  pickupAddress   String?  @db.Text
-  deliveryAddress String?  @db.Text
-  
-  // Dates
-  scheduledDate   DateTime?
-  actualDate      DateTime?
-  estimatedTime   String?  @db.VarChar(50) // "2-4 hours"
-  
-  notes String? @db.Text
-  
-  // Relations
-  orderId     Int?
-  order       Order?    @relation(fields: [orderId], references: [id])
-  warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  supplierId  Int?
-  supplier    Supplier? @relation(fields: [supplierId], references: [id])
-  createdBy   User      @relation(fields: [createdById], references: [id])
-  createdById Int
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  items DeliveryItem[]
-  
-  @@map("deliveries")
-}
-
-model DeliveryItem {
-  id               Int @id @default(autoincrement())
-  quantityExpected Int
-  quantityActual   Int @default(0)
-  condition        String? @db.VarChar(100) // "Good", "Damaged", etc.
-  
-  deliveryId Int
-  delivery   Delivery @relation(fields: [deliveryId], references: [id])
-  productId  Int
-  product    Product  @relation(fields: [productId], references: [id])
-  
-  @@map("delivery_items")
-}
-
 // Stock Movement Tracking
 model StockMovement {
-  id           Int          @id @default(autoincrement())
-  movementType MovementType
-  quantity     Int // Positive for IN, negative for OUT
-
-  // Reference to what caused this movement
-  referenceType String? @db.VarChar(50) // "order", "adjustment", "return", "delivery"
-  referenceId   Int?
-
-  // Location info
+  id            Int               @id @default(autoincrement())
+  movementType  MovementType
+  quantity      Int
   fromLocationId Int?
   toLocationId   Int?
-
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
+  notes         String?           @db.Text
+  referenceType String?           @db.VarChar(50)
+  referenceId   Int?
+  createdAt     DateTime          @default(now())
 
   // Relations
-  product     Product @relation(fields: [productId], references: [id])
-  productId   Int
-  createdBy   User    @relation(fields: [createdById], references: [id])
-  createdById Int
+  product      Product   @relation(fields: [productId], references: [id])
+  productId    Int
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdById  Int
+  
+  // ✅ Add these relation fields
+  fromLocation Location? @relation("StockMovementFrom", fields: [fromLocationId], references: [id])
+  toLocation   Location? @relation("StockMovementTo", fields: [toLocationId], references: [id])
 
   @@map("stock_movements")
+}
+
+// Add to your existing schema.prisma
+
+// Reports and Analytics
+model Report {
+  id            Int          @id @default(autoincrement())
+  type          ReportType
+  title         String       @db.VarChar(255)
+  description   String?      @db.Text
+  parameters    Json?        // Report configuration parameters
+  status        ReportStatus @default(PENDING)
+  filePath      String?      @db.VarChar(500)
+  fileUrl       String?      @db.VarChar(500)
+  generatedAt   DateTime?
+  scheduledFor  DateTime?
+  isScheduled   Boolean      @default(false)
+  frequency     ReportFrequency?
+  lastRun       DateTime?
+  nextRun       DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+  warehouseId   Int
+  createdBy     User         @relation(fields: [createdById], references: [id])
+  createdById   Int
+
+  @@map("reports")
+}
+
+model KPI {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(100)
+  category     String   @db.VarChar(50)
+  value        Float
+  target       Float?
+  unit         String?  @db.VarChar(20)
+  period       String   @db.VarChar(20) // daily, weekly, monthly, yearly
+  date         DateTime
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId  Int
+
+  @@unique([warehouseId, name, category, period, date])
+  @@map("kpis")
+}
+
+model AnalyticsEvent {
+  id           Int      @id @default(autoincrement())
+  eventType    String   @db.VarChar(100)
+  eventName    String   @db.VarChar(100)
+  description  String?  @db.Text
+  data         Json?
+  value        Float?
+  userId       Int?
+  productId    Int?
+  orderId      Int?
+  supplierId   Int?
+  categoryId   Int?
+  locationId   Int?
+  timestamp    DateTime @default(now())
+
+  // Relations
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId  Int
+  user         User?     @relation(fields: [userId], references: [id])
+  product      Product?  @relation(fields: [productId], references: [id])
+  order        Order?    @relation(fields: [orderId], references: [id])
+  supplier     Supplier? @relation(fields: [supplierId], references: [id])
+  category     Category? @relation(fields: [categoryId], references: [id])
+  location     Location? @relation(fields: [locationId], references: [id])
+
+  @@index([warehouseId, eventType, timestamp])
+  @@index([warehouseId, timestamp])
+  @@map("analytics_events")
+}
+
+// Enums
+enum ReportType {
+  SALES
+  INVENTORY
+  ORDERS
+  SUPPLIERS
+  WAREHOUSE_PERFORMANCE
+  PRODUCT_PERFORMANCE
+  CUSTOM
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 // Enums

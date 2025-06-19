@@ -46,7 +46,6 @@ export const authenticateToken = async (
     );
 
     const auth0User = response.data;
-    console.log("Auth0 user info:", auth0User);
 
     // Find or create user in database
     let dbUser = await prisma.user.findUnique({

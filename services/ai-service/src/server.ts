@@ -1,92 +1,62 @@
-import express, { Express, Request, Response, NextFunction } from "express";
+import express from "express";
 import cors from "cors";
-import helmet from "helmet";
-import compression from "compression";
-import dotenv from "dotenv";
-import { healthRouter } from "./routes/health";
-import { aiRouter } from "./routes/ai";
+import { connectDB } from "./config/database";
+import { authenticateAPIKey } from "./middleware/auth";
+import reorderRoutes from "./routes/reorder";
+import trendRoutes from "./routes/trends";
 
-// Load environment variables
-dotenv.config();
+const app = express();
 
-const app: Express = express(); // ✅ Add explicit type annotation
-const PORT: number = parseInt(process.env.PORT || "6001", 10);
+// Basic middleware
+app.use(express.json());
+app.use(cors());
 
-// Security middleware
-app.use(helmet());
-app.use(compression());
+// Trust proxy for real IP addresses
+app.set("trust proxy", true);
 
-// Configure CORS
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://warely.local",
-      process.env.FRONTEND_URL || "http://localhost:3000",
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  })
-);
-
-// Body parsing middleware
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-// Routes
-app.use("/health", healthRouter);
-app.use("/ai", aiRouter);
-
-// Root endpoint
-app.get("/", (req: Request, res: Response): void => {
+// Health check (unprotected - for monitoring)
+app.get("/health", (req, res) => {
   res.json({
-    message: "Warely AI Service",
-    status: "ok",
-    version: "1.0.0",
+    status: "OK",
+    service: "ai-service",
     timestamp: new Date().toISOString(),
   });
 });
 
-// Hello endpoint
-app.get("/hello", (req: Request, res: Response): void => {
-  res.json({ message: "Hello from Warely AI-Service" });
-});
+// Apply API key authentication to all /api routes
+app.use("/api", authenticateAPIKey);
 
-// Global error handler
-app.use((err: any, req: Request, res: Response, next: NextFunction): void => {
-  console.error("Error:", err);
-  res.status(500).json({
-    error: "Internal Server Error",
-    message:
-      process.env.NODE_ENV === "development"
-        ? err.message
-        : "Something went wrong",
-  });
-});
+// Protected routes
+app.use("/api/reorder", reorderRoutes);
+app.use("/api/trends", trendRoutes);
 
 // 404 handler
-app.use("*", (req: Request, res: Response): void => {
+app.use("*", (req, res) => {
+  console.warn(
+    `🚫 404 - Route not found: ${req.method} ${req.originalUrl} from ${req.ip}`
+  );
   res.status(404).json({
-    error: "Not Found",
-    message: `Route ${req.originalUrl} not found`,
+    success: false,
+    message: "Route not found",
   });
 });
 
-// Start server
-const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 AI Service running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "production"}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`👋 Hello endpoint: http://localhost:${PORT}/hello`);
-});
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
 
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("🔄 SIGTERM received, shutting down gracefully");
-  server.close(() => {
-    console.log("✅ Process terminated");
-  });
-});
+    const PORT = process.env.PORT || 6001;
+    app.listen(PORT, () => {
+      console.log(`🚀 AI Service running on port ${PORT}`);
+      console.log(`🔐 API Key authentication enabled`);
+      console.log(`📍 Health check: http://localhost:${PORT}/health`);
+      console.log(`🛡️ Protected routes: http://localhost:${PORT}/api/*`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:", error);
+    process.exit(1);
+  }
+};
 
-export default app;
+startServer();

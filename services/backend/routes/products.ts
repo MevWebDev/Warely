@@ -155,13 +155,34 @@ router.get(
         orderBy: { createdAt: "desc" },
       });
 
-      res.json({ success: true, data: products });
+      const productsWithAlerts = products.map((product) => ({
+        ...product,
+        alertStatus: getAlertStatus(product.currentStock, product.reorderPoint),
+        stockLevel: getStockLevel(product.currentStock, product.reorderPoint),
+      }));
+
+      res.json({ success: true, data: productsWithAlerts });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, message: "Server error" });
     }
   }
 );
+
+function getAlertStatus(currentStock: number, reorderPoint: number) {
+  if (currentStock <= 0) return "OUT_OF_STOCK";
+  if (currentStock <= reorderPoint) return "LOW_STOCK";
+  if (currentStock <= reorderPoint * 1.5) return "WARNING";
+  return "NORMAL";
+}
+
+function getStockLevel(currentStock: number, reorderPoint: number) {
+  const percentage = (currentStock / (reorderPoint * 2)) * 100;
+  if (percentage <= 0) return "critical";
+  if (percentage <= 50) return "low";
+  if (percentage <= 75) return "medium";
+  return "high";
+}
 
 // READ ONE - Filter by warehouse
 router.get(
@@ -226,6 +247,83 @@ router.get(
       res.json({ success: true, data: product });
     } catch (error) {
       console.error(error);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  }
+);
+
+// GET product by barcode - Filter by warehouse
+router.get(
+  "/barcode/:barcode",
+  authenticateToken,
+  requireWarehouseAccess,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const barcode = req.params.barcode;
+
+      if (!barcode || barcode.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          message: "Barcode is required",
+        });
+      }
+
+      const warehouseId = req.user?.currentWarehouse?.warehouseId;
+
+      if (!warehouseId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Warehouse context required. Please specify X-Warehouse-Id header.",
+        });
+      }
+
+      const product = await prisma.product.findFirst({
+        where: {
+          barCode: barcode,
+          warehouseId: warehouseId,
+          isActive: true, // Only return active products
+        },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
+          },
+          supplier: {
+            select: {
+              id: true,
+              name: true,
+              contactEmail: true,
+              contactPhone: true,
+            },
+          },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      });
+
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found with this barcode in current warehouse",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: product,
+        message: "Product found successfully",
+      });
+    } catch (error) {
+      console.error("Get product by barcode error:", error);
       res.status(500).json({ success: false, message: "Server error" });
     }
   }

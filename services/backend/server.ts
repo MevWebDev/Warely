@@ -15,7 +15,7 @@ import {
   requireWarehouseRole,
   requireWarehouseAccess,
   requireAuth,
-} from "./middleware/auth0"; // Add this import
+} from "./middleware/auth0";
 
 import productsRoutes from "./routes/products";
 import categoriesRoutes from "./routes/categories";
@@ -24,6 +24,10 @@ import analyticsRoutes from "./routes/analytics";
 import usersRoutes from "./routes/users";
 import warehousesRoutes from "./routes/warehouses";
 import warehousesUsersRoutes from "./routes/warehouseUsers";
+import ordersRoutes from "./routes/orders";
+import locationsRoutes from "./routes/locations";
+import aiAnalyticsRoutes from "./routes/aiAnalytics";
+import stockAlertRoutes from "./routes/stockAlerts";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -94,6 +98,10 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/warehouse-users", warehousesUsersRoutes);
 app.use("/api/warehouses", warehousesRoutes);
+app.use("/api/orders", ordersRoutes);
+app.use("/api/locations", locationsRoutes);
+app.use("/api/ai", aiAnalyticsRoutes);
+app.use("/api/stock-alerts", stockAlertRoutes);
 
 // Error handling
 app.use(errorHandler);
