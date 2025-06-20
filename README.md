@@ -96,5 +96,5 @@ For local development with hot reload:
 
 ```bash
 # Start databases and run services locally
-pnpm db:local
+pnpm dev:local
 ```
